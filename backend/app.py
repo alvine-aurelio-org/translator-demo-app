@@ -17,6 +17,9 @@ TRANSLATOR_REGION = "eastus"
 def homepage():
     return render_template('index.html')
 
+import os
+TRANSLATOR_KEY = os.getenv("AZURE_TRANSLATOR_KEY", "YOUR_TRANSLATOR_KEY")
+
 @app.route('/api/translate', methods=['POST'])
 def translate_file():
     file = request.files.get('file')
