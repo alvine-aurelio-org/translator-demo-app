@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Azure Translator – Document Translation</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f4f6fa;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .upload-bar {
+            background: #fff;
+            padding: 1em 2em;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            display: flex;
+            align-items: center;
+            gap: 2em;
+        }
+        .upload-zone {
+            border: 2px dashed #0078d4;
+            border-radius: 8px;
+            padding: 1em 2em;
+            background: #eaf1fb;
+            color: #0078d4;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .upload-zone.dragover {
+            background: #d0e6fa;
+        }
+        .lang-select {
+            font-size: 1em;
+            padding: 0.5em;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .file-types {
+            font-size: 0.95em;
+            color: #666;
+            margin-left: 1em;
+        }
+        .split-pane {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        .panel {
+            flex: 1;
+            background: #fff;
+            margin: 1em;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #0078d4;
+            padding: 1em 1em 0.5em 1em;
+            border-bottom: 1px solid #eaf1fb;
+        }
+        .panel-content {
+            flex: 1;
+            padding: 1em;
+            overflow-y: auto;
+            font-size: 1em;
+            background: #f9fbfd;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+        }
+        th, td {
+            border: 1px solid #d0e6fa;
+            padding: 0.5em 1em;
+            text-align: left;
+        }
+        th {
+            background: #eaf1fb;
+            color: #0078d4;
+        }
+        .api-links {
+            margin-top: 1em;
+            font-size: 0.95em;
+        }
+        .tips {
+            background: #eaf1fb;
+            color: #0078d4;
+            padding: 0.5em 1em;
+            border-radius: 6px;
+            margin: 1em 0;
+            font-size: 0.95em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="upload-bar">
+            <form id="uploadForm" enctype="multipart/form-data" method="post" style="display:flex;align-items:center;gap:1em;">
+                <div id="uploadZone" class="upload-zone">Drag & Drop or Click to Upload</div>
+                <select id="langSelect" class="lang-select" name="lang">
+                    <option value="en">English</option>
+                    <option value="ja">Japanese</option>
+                    <option value="fr">French</option>
+                    <option value="es">Spanish</option>
+                    <option value="de">German</option>
+                    <option value="zh-Hans">Chinese (Simplified)</option>
+                </select>
+                <span class="file-types">Supported: Word, Excel, PowerPoint, PDF, CSV, HTML, TXT</span>
+                <button type="submit" style="background:#0078d4;color:#fff;border:none;padding:0.5em 1.2em;border-radius:4px;font-size:1em;cursor:pointer;">Translate</button>
+            </form>
+            <div style="flex:1;display:flex;align-items:center;gap:1em;">
+                <span id="fileName" style="color:#0078d4;font-weight:500;"></span>
+                <div id="progressBar" style="width:200px;height:8px;background:#eaf1fb;border-radius:4px;overflow:hidden;">
+                    <div id="progress" style="height:100%;background:#0078d4;width:0%;transition:width 0.3s;"></div>
+                </div>
+                <span id="uploadStatus" style="font-size:0.95em;color:#666;"></span>
+            </div>
+        </div>
+        <div class="split-pane">
+            <div class="panel" id="panelSource">
+                <div class="panel-title">Source Document</div>
+                <div class="panel-content" id="sourceContent">
+                    <p>Upload a document to preview its content here.</p>
+                </div>
+            </div>
+            <div class="panel" id="panelTarget">
+                <div class="panel-title">Translated Document</div>
+                <div class="panel-content" id="targetContent">
+                    <p>Translation will appear here.</p>
+                </div>
+            </div>
+        </div>
+        <div class="api-links" style="text-align:center;">
+            <a href="#">REST API</a> | <a href="#">SDKs</a> | <a href="#">Connectors</a>
+        </div>
+        <div class="tips" style="text-align:center;">
+            <strong>Performance Tip:</strong> Use batch translation for large files. Synchronous methods are best for small documents.
+        </div>
+    </div>
+    <script>
+    // Drag & Drop logic
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.name = 'file';
+    fileInput.accept = '.docx,.pdf,.jpg,.jpeg,.png,.txt,.csv,.html,.pptx,.xlsx';
+    fileInput.style.display = 'none';
+    uploadZone.appendChild(fileInput);
+    uploadZone.onclick = () => fileInput.click();
+    uploadZone.ondragover = e => { e.preventDefault(); uploadZone.classList.add('dragover'); };
+    uploadZone.ondragleave = e => { e.preventDefault(); uploadZone.classList.remove('dragover'); };
+    uploadZone.ondrop = e => {
+        e.preventDefault();
+        uploadZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            fileInput.files = e.dataTransfer.files;
+        }
+    };
+    // Preview logic for .txt files only (for demo)
+    fileInput.onchange = () => {
+        const file = fileInput.files[0];
+        document.getElementById('fileName').textContent = file ? file.name : '';
+        document.getElementById('uploadStatus').textContent = '';
+        document.getElementById('progress').style.width = '0%';
+        const sourceContent = document.getElementById('sourceContent');
+        if (!file) {
+            sourceContent.innerHTML = '<p>Upload a document to preview its content here.</p>';
+            return;
+        }
+        if (file.name.endsWith('.txt')) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                sourceContent.textContent = e.target.result;
+            };
+            reader.readAsText(file);
+        } else if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                sourceContent.innerHTML = `<img src="${e.target.result}" style="max-width:100%;max-height:400px;border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
+            };
+            reader.readAsDataURL(file);
+        } else if (file.name.endsWith('.pdf')) {
+            sourceContent.innerHTML = `<embed src="${URL.createObjectURL(file)}" type="application/pdf" width="100%" height="400px" style="border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
+        } else if (file.name.endsWith('.docx')) {
+            sourceContent.innerHTML = `<p>Preview not available for DOCX. Download to view.</p>`;
+        } else {
+            sourceContent.innerHTML = '<p>Preview not available for this file type.</p>';
+        }
+    };
+    // Form submit logic
+    document.getElementById('uploadForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const file = fileInput.files[0];
+        const lang = document.getElementById('langSelect').value;
+        if (!file) return;
+        document.getElementById('targetContent').innerHTML = '<p>Uploading...</p>';
+        document.getElementById('uploadStatus').textContent = 'Uploading...';
+        document.getElementById('progress').style.width = '0%';
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('lang', lang);
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/translate', true);
+        xhr.upload.onprogress = (evt) => {
+            if (evt.lengthComputable) {
+                const percent = Math.round((evt.loaded / evt.total) * 100);
+                document.getElementById('progress').style.width = percent + '%';
+            }
+        };
+        xhr.onload = async () => {
+            document.getElementById('uploadStatus').textContent = '';
+            // Do not update progress bar after upload completes
+            if (xhr.status === 200) {
+                const data = JSON.parse(xhr.responseText);
+                const targetContent = document.getElementById('targetContent');
+                if (data.result && !data.translatedFileUrl) {
+                    targetContent.textContent = data.result;
+                } else if (data.result && data.translatedFileUrl) {
+                    if (data.isImage) {
+                        targetContent.innerHTML = `<img src="${data.translatedFileUrl}" style="max-width:100%;max-height:400px;border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
+                    } else if (data.translatedFileUrl.endsWith('.pdf')) {
+                        targetContent.innerHTML = `<embed src="${data.translatedFileUrl}" type="application/pdf" width="100%" height="400px" style="border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
+                    } else if (data.translatedFileUrl.endsWith('.docx')) {
+                        targetContent.innerHTML = `<a href="${data.translatedFileUrl}" target="_blank">Download translated DOCX</a>`;
+                    } else {
+                        targetContent.innerHTML = `<a href="${data.translatedFileUrl}" target="_blank">Download translated file</a>`;
+                    }
+                } else {
+                    targetContent.innerHTML = '<p>No translation result.</p>';
+                }
+            } else {
+                let errorMsg = '';
+                try {
+                    const errObj = JSON.parse(xhr.responseText);
+                    errorMsg = errObj.error || errObj.result || xhr.responseText;
+                } catch {
+                    errorMsg = xhr.responseText;
+                }
+                document.getElementById('targetContent').innerHTML = `<p style="color:#d32f2f;font-weight:600;">${errorMsg}</p>`;
+            }
+        };
+        xhr.onerror = () => {
+            document.getElementById('uploadStatus').textContent = '';
+            document.getElementById('targetContent').innerHTML = '<p style="color:#d32f2f;font-weight:600;">Upload failed.</p>';
+        };
+        xhr.send(formData);
+    };
+    // Optional: Sync scroll between panels
+    const sourcePanel = document.getElementById('sourceContent');
+    const targetPanel = document.getElementById('targetContent');
+    sourcePanel.onscroll = () => {
+        targetPanel.scrollTop = sourcePanel.scrollTop;
+    };
+    targetPanel.onscroll = () => {
+        sourcePanel.scrollTop = targetPanel.scrollTop;
+    };
+    </script>
+</body>
+</html>
