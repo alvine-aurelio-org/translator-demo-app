@@ -356,8 +356,8 @@
 			formData.append('sourceLang', 'auto');
 			formData.append('targetLang', lang);
 			const xhr = new XMLHttpRequest();
-			// Use local Azure Function backend for testing
-			const azureFunctionUrl = 'http://localhost:7072/api/UploadAndTranslate';
+			// Use deployed Azure Function backend
+			const azureFunctionUrl = 'https://translator-func-2k7g.azurewebsites.net/api/UploadAndTranslate';
 			xhr.open('POST', azureFunctionUrl, true);
 			xhr.onload = async () => {
 				document.getElementById('uploadStatus').textContent = '';
