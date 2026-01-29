@@ -1,0 +1,6 @@
+# Ignore environment files and secrets
+backend/.env
+*.env
+*.env.*
+backend/app.log
+__pycache__/
