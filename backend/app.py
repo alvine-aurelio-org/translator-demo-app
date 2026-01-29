@@ -1,109 +1,136 @@
+import logging
 import os
-from flask import Flask, request, jsonify, render_template, url_for
-from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobServiceClient
-from azure.ai.translation.document import DocumentTranslationClient, DocumentTranslationInput, TranslationTarget
 import time
+from dotenv import load_dotenv
+from flask import Flask, request, jsonify, render_template
+from azure.storage.blob import BlobServiceClient
+import requests
 
+log_path = os.path.join(os.path.dirname(__file__), 'app.log')
+logging.basicConfig(
+	level=logging.INFO,
+	format='%(asctime)s %(levelname)s %(name)s %(message)s',
+	handlers=[
+		logging.FileHandler(log_path),
+		logging.StreamHandler()
+	]
+)
+logger = logging.getLogger(__name__)
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 app = Flask(__name__)
 
-STORAGE_ACCOUNT_NAME = "translatorstoragelxqk42"
-SOURCE_CONTAINER = "source-docs"
-TARGET_CONTAINER = "translated-docs"
-TRANSLATOR_ENDPOINT = "https://tl-001.cognitiveservices.azure.com/"
-TRANSLATOR_REGION = "eastus"
-
 @app.route('/')
-def homepage():
-    return render_template('index.html')
-
-import os
-TRANSLATOR_KEY = os.getenv("AZURE_TRANSLATOR_KEY", "YOUR_TRANSLATOR_KEY")
-
-@app.route('/api/translate', methods=['POST'])
-def translate_file():
-    file = request.files.get('file')
-    lang = request.form.get('lang')
-    if not file or not lang:
-        return jsonify({'error': 'Missing file or lang'}), 400
+def index():
+	return render_template('index.html')
 
 
-    import logging
-    ext = os.path.splitext(file.filename)[1].lower()
-    import logging
-    conn_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-    use_managed_identity = not conn_str
-    logging.warning(f"AZURE_STORAGE_CONNECTION_STRING at runtime: {conn_str}")
+@app.route('/api/upload-and-translate', methods=['POST'])
+def upload_and_translate():
+    if 'file' not in request.files:
+        logger.error('No file part in request')
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        logger.error('No selected file')
+        return jsonify({'error': 'No selected file'}), 400
+
+    # Accept extra fields for future translation
+    source_lang = request.form.get('sourceLang', 'auto')
+    target_lang = request.form.get('targetLang', '')
+
+    # Azure Blob Storage config
+    conn_str = os.environ.get('AZURE_STORAGE_CONNECTION_STRING')
+    target_container = os.environ.get('AZURE_TARGET_CONTAINER', 'translated-docs')
+    logger.info(f"[CONFIG] Using target_container: {target_container}")
     try:
-        if use_managed_identity:
-            logging.warning("Using DefaultAzureCredential for BlobServiceClient (Managed Identity)")
-            credential = DefaultAzureCredential()
-            blob_service_client = BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net/", credential=credential)
-        else:
-            logging.warning(f"Using connection string for BlobServiceClient: {conn_str[:40]}...")
-            blob_service_client = BlobServiceClient.from_connection_string(conn_str)
-            credential = None
-        source_blob_client = blob_service_client.get_blob_client(container=SOURCE_CONTAINER, blob=file.filename)
+        blob_service_client = BlobServiceClient.from_connection_string(conn_str)
+        import os as _os
+        name, ext = _os.path.splitext(file.filename)
+        temp_container = os.environ.get('AZURE_SOURCE_CONTAINER', 'source-docs')
+        translated_filename = f"{name}-{target_lang}{ext}"
+        # Check if translated file already exists in the target container
+        tgt_blob_client = blob_service_client.get_blob_client(container=target_container, blob=translated_filename)
+        if tgt_blob_client.exists():
+            logger.info(f'[TRANSLATE] Output file {translated_filename} already exists in {target_container}')
+            target_sas = os.environ.get('TARGET_SAS_TOKEN')
+            tgt_url = f'https://ussampleeastus2storev2.blob.core.windows.net/{target_container}/{translated_filename}?{target_sas}'
+            response_json = {
+                'result': 'Translation already completed',
+                'targetUrl': tgt_url,
+                'status': 'OutputFileExists'
+            }
+            logger.info(f'[TRANSLATE] JSON response to client: {response_json}')
+            return jsonify(response_json), 200
+
+        # Upload source file to temp/source container
+        source_sas = os.environ.get('SOURCE_SAS_TOKEN')
+        src_url = f'https://ussampleeastus2storev2.blob.core.windows.net/{temp_container}/{file.filename}?{source_sas}'
+        src_blob_client = blob_service_client.get_blob_client(container=temp_container, blob=file.filename)
         file.stream.seek(0)
-        source_blob_client.upload_blob(file.stream.read(), overwrite=True)
+        src_blob_client.upload_blob(file.stream.read(), overwrite=True)
+        logger.info(f'File {file.filename} uploaded to {temp_container} using SAS')
+        # Prepare translation
+        target_sas = os.environ.get('TARGET_SAS_TOKEN')
+        tgt_url = f'https://ussampleeastus2storev2.blob.core.windows.net/{target_container}/{translated_filename}?{target_sas}'
+        logger.info(f'[SAS] Target blob SAS URL: {tgt_url}')
+        logger.info(f'[SAS] Target blob SAS string: {target_sas}')
+        logger.info(f'[SAS] Target blob name used for SAS: {translated_filename}')
+        endpoint = os.environ.get('AZURE_TRANSLATOR_ENDPOINT')
+        headers = {
+            'Ocp-Apim-Subscription-Key': os.environ.get('AZURE_TRANSLATOR_KEY'),
+            'Ocp-Apim-Subscription-Region': os.environ.get('AZURE_TRANSLATOR_REGION'),
+            'Content-Type': 'application/json'
+        }
+        # Build the source object, omitting 'language' if 'auto' is selected
+        source_obj = {
+            "sourceUrl": src_url
+        }
+        if source_lang and source_lang.lower() != "auto":
+            source_obj["language"] = source_lang
+        body = {
+            "inputs": [
+                {
+                    "storageType": "File",
+                    "source": source_obj,
+                    "targets": [
+                        {
+                            "targetUrl": tgt_url,
+                            "language": target_lang
+                        }
+                    ]
+                }
+            ]
+        }
+        logger.info(f'[TRANSLATE] Sending translation request body: {body}')
+        resp = requests.post(endpoint, headers=headers, json=body)
+        logger.info(f'[TRANSLATE] Translation API response: {resp.status_code} {resp.text}')
+        if resp.status_code not in (200, 202):
+            logger.error(f'Translation API error: {resp.status_code} {resp.text}')
+            return jsonify({'error': 'Translation API error', 'details': resp.text}), 500
+        op_url = resp.headers.get('operation-location') or resp.json().get('operationUrl')
+        logger.info(f'Translation started. Operation URL: {op_url}')
+        response_json = {
+            'result': 'Translation job submitted',
+            'operationUrl': op_url,
+            'targetUrl': tgt_url,
+            'status': 'Submitted'
+        }
+        logger.info(f'[TRANSLATE] JSON response to client: {response_json}')
+        return jsonify(response_json), 200
     except Exception as e:
-        logging.error(f"Blob upload error: {e}")
-        error_code = getattr(e, 'error_code', None)
-        error_message = str(e)
-        # Try to extract error code from the exception content if available
-        if hasattr(e, 'response') and hasattr(e.response, 'text'):
-            import re
-            response_text = e.response.text
-            if callable(response_text):
-                response_text = response_text()
-            if isinstance(response_text, (str, bytes)):
-                match = re.search(r'<Code>(.*?)</Code>', response_text)
-                if match:
-                    error_code = match.group(1)
-        return jsonify({'error': error_message}), 500
-    source_url = f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net/{SOURCE_CONTAINER}/{file.filename}"
-    target_url = f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net/{TARGET_CONTAINER}/"
+        logger.exception(f'Azure Blob upload or translation failed: {e}')
+        return jsonify({'error': 'Azure Blob upload or translation failed', 'details': str(e)}), 500
 
-    # Start Document Translation job
-    if use_managed_identity:
-        doc_client = DocumentTranslationClient(endpoint=TRANSLATOR_ENDPOINT, credential=credential)
-    else:
-        doc_client = DocumentTranslationClient(endpoint=TRANSLATOR_ENDPOINT, credential=DefaultAzureCredential())
-    inputs = [
-        DocumentTranslationInput(
-            source_url=source_url,
-            targets=[TranslationTarget(target_url=target_url, language_code=lang)]
-        )
-    ]
-    poller = doc_client.begin_translation(inputs)
-    # Poll for completion
-    while not poller.done():
-        time.sleep(2)
-    result = poller.result()
-    logging.warning("Document Translation Results:")
-    # Find translated file name
-    translated_file_name = None
-    for doc in result:
-        logging.warning(f"Status: {doc.status}, Source: {doc.source_document_url}, Translated: {getattr(doc, 'translated_document_url', None)}, Error: {getattr(doc, 'error', None)}")
-        if doc.status == "Succeeded":
-            translated_file_name = os.path.basename(doc.translated_document_url)
-            logging.warning(f"Translated file found: {translated_file_name}")
-            break
-    if not translated_file_name:
-        error_details = [f"Status: {doc.status}, Error: {getattr(doc, 'error', None)}" for doc in result]
-        logging.error(f"Translation failed. Details: {error_details}")
-        return jsonify({'error': 'Translation failed.', 'details': error_details}), 500
-    translated_url = f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net/{TARGET_CONTAINER}/{translated_file_name}"
 
-    is_image = ext in ['.jpg', '.jpeg', '.png']
-    if is_image:
-        return jsonify({'error': 'Unsupported file type. Only DOCX, PDF, TXT, XLSX, PPTX, and other Office documents are supported for translation. Images are not supported.'}), 400
-
-    return jsonify({
-        'result': 'Translation complete.',
-        'translatedFileUrl': translated_url,
-        'isImage': is_image
-    })
+# Endpoint to display the error log in the browser
+@app.route('/logs')
+def logs():
+	try:
+		with open(log_path, 'r') as f:
+			log_content = f.read()
+		return f'<pre style="white-space: pre-wrap;">{log_content}</pre>'
+	except Exception as e:
+		return f'Could not read log file: {e}', 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+	app.run(debug=True)
