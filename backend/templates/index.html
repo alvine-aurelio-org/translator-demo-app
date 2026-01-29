@@ -368,10 +368,8 @@
                         document.getElementById('translateSuccessMsg').style.display = 'block';
                         document.getElementById('waitingMsg').style.display = 'none';
                         document.getElementById('retryBtn').style.display = 'none';
-                        // Show download link after 10 seconds
-                        setTimeout(() => {
-                            downloadLink.style.display = 'inline-block';
-                        }, 10000);
+                        // Show download link immediately
+                        downloadLink.style.display = 'inline-block';
                     } else {
                         alert('No translation result.');
                     }
