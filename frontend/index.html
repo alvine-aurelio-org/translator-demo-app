@@ -364,14 +364,18 @@
 				if (xhr.status === 200) {
 					const data = JSON.parse(xhr.responseText);
 					if (data.targetUrl) {
+						console.log('Setting download link:', data.targetUrl);
 						downloadLink.href = data.targetUrl;
 						const urlParts = data.targetUrl.split('/');
 						downloadLink.setAttribute('download', urlParts[urlParts.length-1].split('?')[0]);
 						document.getElementById('translateSuccessMsg').style.display = 'block';
 						document.getElementById('waitingMsg').style.display = 'none';
 						document.getElementById('retryBtn').style.display = 'none';
-						// Show download link immediately
-						downloadLink.style.display = 'inline-block';
+						// Show download link after 10 seconds
+						setTimeout(() => {
+							downloadLink.style.display = 'inline-block';
+							console.log('Download link display style:', downloadLink.style.display);
+						}, 10000);
 					} else {
 						alert('No translation result.');
 					}
