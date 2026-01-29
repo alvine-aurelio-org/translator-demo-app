@@ -1,0 +1,4 @@
+azure-functions
+requests
+azure-storage-blob
+# Add other dependencies from your Flask backend as needed

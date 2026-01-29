@@ -1,0 +1,17 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "SOURCE_SAS_TOKEN": "se=2026-02-05T07%3A20%3A35Z&sp=racwdl&spr=https&sv=2022-11-02&sr=c&sig=E3yHf4LVA0Fspt2234qHoAonBuNBpXrh9Z9oF6v1xCY%3D",
+    "TARGET_SAS_TOKEN": "se=2026-12-05T07%3A20%3A35Z&sp=racwdl&spr=https&sv=2022-11-02&sr=c&sig=ZPJIj67RHhuRzcNOICpe%2BvP4ZyKFmV4t6tp4eAsXXiQ%3D",
+    "AZURE_STORAGE_ACCOUNT_NAME": "ussampleeastus2storev2",
+    "AZURE_STORAGE_ACCOUNT_KEY": "cYcqz4QqB0z6KlkHDvpbsTZvJys9rTQQaeFFF1kL3xtjLFwTo4FgC2YVRwjPtW9gDuwvyiB1ktnR+AStRsoE2A==",
+    "AZURE_STORAGE_CONNECTION_STRING": "DefaultEndpointsProtocol=https;AccountName=ussampleeastus2storev2;AccountKey=cYcqz4QqB0z6KlkHDvpbsTZvJys9rTQQaeFFF1kL3xtjLFwTo4FgC2YVRwjPtW9gDuwvyiB1ktnR+AStRsoE2A==;EndpointSuffix=core.windows.net",
+    "AZURE_SOURCE_CONTAINER": "source-docs",
+    "AZURE_TARGET_CONTAINER": "translated-docs",
+    "AZURE_TRANSLATOR_KEY": "7VPvds3ZrIh96lIkbqstwOuk6Awb6qjQqSxLktwi1BhPXzH9BDLQJQQJ99CAACHYHv6XJ3w3AAAbACOGc7Vi",
+    "AZURE_TRANSLATOR_REGION": "eastus2",
+    "AZURE_TRANSLATOR_ENDPOINT": "https://ustranslate001.cognitiveservices.azure.com/translator/document/batches?api-version=2025-12-01-preview"
+  }
+}
