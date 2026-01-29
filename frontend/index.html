@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Azure Translator – Document Translation</title>
+	<style>
+		body {
+			font-family: 'Segoe UI', Arial, sans-serif;
+			background: #f4f6fa;
+			margin: 0;
+			padding: 0;
+		}
+		.container {
+			display: flex;
+			flex-direction: column;
+			min-height: 100vh;
+		}
+		.upload-bar {
+			background: #fff;
+			padding: 1em 2em;
+			box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 1em;
+		}
+				#sourcePreviewPanel {
+					max-width: 700px;
+					width: 95vw;
+					margin: 2em auto 0 auto;
+					background: #fff;
+					border-radius: 8px;
+					box-shadow: 0 2px 8px #0078d422;
+					padding: 1.5em;
+				}
+				@media (max-width: 600px) {
+					.upload-bar {
+						flex-direction: column;
+						align-items: stretch;
+						padding: 1em 0.5em;
+						gap: 0.7em;
+					}
+					#sourcePreviewPanel {
+						max-width: 98vw;
+						padding: 0.7em;
+					}
+						#sourcePreviewPanel {
+							width: 100%;
+							max-width: 900px;
+							min-width: 0;
+							margin: 2em auto 0 auto;
+							background: #fff;
+							border-radius: 12px;
+							box-shadow: 0 2px 16px #0078d422;
+							padding: 2.5em 2em;
+							box-sizing: border-box;
+							transition: max-width 0.3s, padding 0.3s;
+						}
+						#sourcePreviewContent {
+							min-height: 420px;
+							display: flex;
+							align-items: center;
+							justify-content: center;
+							flex-direction: column;
+							width: 100%;
+							box-sizing: border-box;
+							transition: min-height 0.3s;
+						}
+						@media (max-width: 1200px) {
+							#sourcePreviewPanel {
+								max-width: 98vw;
+								padding: 1.5em 0.7em;
+							}
+						}
+						@media (max-width: 800px) {
+							#sourcePreviewPanel {
+								max-width: 100vw;
+								padding: 0.7em 0.2em;
+							}
+							#sourcePreviewContent {
+								min-height: 180px;
+							}
+						}
+					.download-center {
+						margin-top: 1em;
+						margin-bottom: 1em;
+						display: flex;
+						flex-direction: column;
+						align-items: center;
+						justify-content: center;
+					}
+					#downloadLink, #retryBtn, #translateBtn {
+						width: 100%;
+						min-width: 0;
+						font-size: 1em;
+						padding: 0.7em 0;
+					}
+					#progressBar {
+						width: 100%;
+						min-width: 0;
+						margin-left: 0;
+						margin-top: 0.5em;
+					}
+					#fileName, #uploadStatus {
+						margin-left: 0;
+						font-size: 0.98em;
+						display: block;
+						margin-top: 0.3em;
+					}
+					#sourcePreviewContent {
+						min-height: 180px;
+					}
+					.upload-zone {
+						font-size: 1em;
+						padding: 0.7em 1em;
+					}
+				}
+		.upload-zone {
+			border: 2px dashed #0078d4;
+			border-radius: 8px;
+			padding: 1em 2em;
+			background: #eaf1fb;
+			color: #0078d4;
+			cursor: pointer;
+			transition: background 0.2s;
+		}
+		.upload-zone.dragover {
+			background: #d0e6fa;
+		}
+		.lang-select {
+			font-size: 1em;
+			padding: 0.5em;
+			border-radius: 4px;
+			border: 1px solid #ccc;
+		}
+		.file-types {
+			font-size: 0.95em;
+			color: #666;
+			margin-left: 1em;
+		}
+		.split-pane {
+			flex: 1;
+			display: flex;
+			overflow: hidden;
+		}
+		.panel {
+			flex: 1;
+			background: #fff;
+			margin: 1em;
+			border-radius: 8px;
+			box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+		}
+		.panel-title {
+			font-size: 1.2em;
+			font-weight: 600;
+			color: #0078d4;
+			padding: 1em 1em 0.5em 1em;
+			border-bottom: 1px solid #eaf1fb;
+		}
+		.panel-content {
+			flex: 1;
+			padding: 1em;
+			overflow-y: auto;
+			font-size: 1em;
+			background: #f9fbfd;
+		}
+		table {
+			border-collapse: collapse;
+			width: 100%;
+			margin: 1em 0;
+		}
+		th, td {
+			border: 1px solid #d0e6fa;
+			padding: 0.5em 1em;
+			text-align: left;
+		}
+		th {
+			background: #eaf1fb;
+			color: #0078d4;
+		}
+		.api-links {
+			margin-top: 1em;
+			font-size: 0.95em;
+		}
+		.tips {
+			background: #eaf1fb;
+			color: #0078d4;
+			padding: 0.5em 1em;
+			border-radius: 6px;
+			margin: 1em 0;
+			font-size: 0.95em;
+		}
+	</style>
+		<div class="upload-bar">
+			<form id="uploadForm" enctype="multipart/form-data" method="post" style="display:flex;flex-wrap:wrap;align-items:center;gap:1em;width:100%;box-sizing:border-box;">
+				<div id="uploadZone" class="upload-zone">Drag & Drop or Click to Upload</div>
+				<input id="fileInput" type="file" name="file" accept=".docx,.pdf,.jpg,.jpeg,.png,.txt,.csv,.html,.pptx,.xlsx" style="display:none;" />
+				<select id="langSelect" class="lang-select" name="lang">
+					<option value="en">English</option>
+					<option value="ja">Japanese</option>
+					<option value="fr">French</option>
+					<option value="es">Spanish</option>
+					<option value="de">German</option>
+					<option value="zh-Hans">Chinese (Simplified)</option>
+				</select>
+				<div style="display:flex;flex-direction:row;align-items:center;gap:1em;">
+					<button id="translateBtn" type="submit">Translate</button>
+					<div id="progressBar" style="width:220px;height:12px;background:#eaf1fb;border-radius:6px;overflow:hidden;box-shadow:0 1px 4px #0078d422;">
+						<div id="progress" style="height:100%;background:linear-gradient(90deg,#0078d4,#00cfff);width:0%;transition:width 0.3s;"></div>
+					</div>
+				</div>
+			</form>
+			<span id="fileName" style="color:#0078d4;font-weight:500;margin-left:1em;"></span>
+			<!-- Removed duplicate progress bar here -->
+			<span id="uploadStatus" style="font-size:1em;color:#0078d4;margin-left:1em;font-weight:500;"></span>
+		</div>
+		<div id="sourcePreviewPanel" style="max-width:700px;margin:2em auto 0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 8px #0078d422;padding:1.5em;">
+			<div style="font-size:1.2em;color:#0078d4;font-weight:700;margin-bottom:0.8em;text-align:center;">Source Preview</div>
+			<div id="sourcePreviewContent">
+				<div id="sourcePreviewPlaceholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="#0078d4" viewBox="0 0 24 24" style="margin-bottom:0.5em;"><path d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.828A2 2 0 0 0 19.414 8l-5.414-5.414A2 2 0 0 0 12.172 2H6zm6 1.414L18.586 10H14a2 2 0 0 1-2-2V3.414zM6 4h5v4a4 4 0 0 0 4 4h4v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4zm2 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm4 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0z"/></svg>
+					<span style="color:#888;font-size:1.1em;text-align:center;">Your file will be displayed here</span>
+				</div>
+			</div>
+		<!-- Source preview panel ends here -->
+		</div>
+		<div style="display:flex;justify-content:center;width:100%;">
+			<div class="download-center" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;max-width:400px;margin:2em auto;">
+				<div id="translateSuccessMsg" style="font-size:1.2em;color:#0078d4;font-weight:600;margin-bottom:1em;display:none;text-align:center;">File Successfully Translated! Please wait for the download Link.</div>
+				<div id="waitingMsg" style="font-size:1em;color:#666;margin-bottom:1em;text-align:center;">Waiting for translated file to be available...</div>
+				<a id="downloadLink" href="#" download style="display:none;margin-bottom:1em;text-align:center;width:100%;">Download Here</a>
+				<button id="retryBtn" style="display:none;margin-top:1em;padding:0.5em 1.5em;border-radius:4px;background:#eaf1fb;color:#0078d4;border:1px solid #0078d4;font-size:1em;cursor:pointer;">Try Again</button>
+			</div>
+		</div>
+				<style>
+				#translateBtn, #retryBtn {
+					background: linear-gradient(90deg,#0078d4,#00cfff);
+					color: #fff;
+					border: none;
+					padding: 0.6em 1.6em;
+					border-radius: 6px;
+					font-size: 1.1em;
+					font-weight: 600;
+					cursor: pointer;
+					box-shadow: 0 2px 8px #0078d422;
+					transition: background 0.2s, box-shadow 0.2s;
+				}
+				#translateBtn:hover, #retryBtn:hover {
+					background: linear-gradient(90deg,#00cfff,#0078d4);
+					box-shadow: 0 4px 16px #0078d433;
+				}
+				#downloadLink {
+					background: linear-gradient(90deg,#0078d4,#00cfff);
+					color: #fff;
+					padding: 0.8em 2em;
+					border-radius: 6px;
+					font-size: 1.1em;
+					text-decoration: none;
+					font-weight: 500;
+					box-shadow: 0 2px 8px #0078d422;
+					display: none;
+					margin-top: 1em;
+					transition: background 0.2s, box-shadow 0.2s;
+				}
+				#downloadLink:hover {
+					background: linear-gradient(90deg,#00cfff,#0078d4);
+					box-shadow: 0 4px 16px #0078d433;
+				}
+				</style>
+		</div>
+		<div class="api-links" style="text-align:center;">
+			<a href="#">KING PANDA</a> | <a href="#">MABANGIS</a> | <a href="#">HALIMAW</a>
+		</div>
+		<div class="tips" style="text-align:center;">
+		<script>
+		const fileInput = document.getElementById('fileInput');
+		const uploadZone = document.getElementById('uploadZone');
+		uploadZone.addEventListener('click', () => fileInput.click());
+		uploadZone.addEventListener('dragover', (e) => {
+			e.preventDefault();
+			uploadZone.classList.add('dragover');
+		});
+		uploadZone.addEventListener('dragleave', (e) => {
+			e.preventDefault();
+			uploadZone.classList.remove('dragover');
+		});
+		uploadZone.addEventListener('drop', (e) => {
+			e.preventDefault();
+			uploadZone.classList.remove('dragover');
+			if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+				fileInput.files = e.dataTransfer.files;
+				fileInput.dispatchEvent(new Event('change'));
+			}
+		});
+		fileInput.onchange = () => {
+			const file = fileInput.files[0];
+			document.getElementById('fileName').textContent = file ? file.name : '';
+			document.getElementById('uploadStatus').textContent = '';
+			document.getElementById('progress').style.width = '0%';
+			const preview = document.getElementById('sourcePreviewContent');
+			const placeholder = document.getElementById('sourcePreviewPlaceholder');
+			if (!file) {
+				preview.innerHTML = '';
+				preview.appendChild(placeholder);
+				placeholder.style.display = 'flex';
+				return;
+			}
+			placeholder.style.display = 'none';
+			if (file.name.endsWith('.txt')) {
+				const reader = new FileReader();
+				reader.onload = e => {
+					preview.innerHTML = `<pre style="white-space:pre-wrap;">${e.target.result.replace(/</g,'&lt;')}</pre>`;
+				};
+				reader.readAsText(file);
+			} else if (file.type.match(/^image\//)) {
+				const reader = new FileReader();
+				reader.onload = e => {
+					preview.innerHTML = `<img src="${e.target.result}" style="max-width:100%;max-height:400px;border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
+				};
+				reader.readAsDataURL(file);
+			} else if (file.name.endsWith('.pdf')) {
+				preview.innerHTML = `<embed src="${URL.createObjectURL(file)}" type="application/pdf" width="100%" height="400px" style="border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
+			} else if (file.name.endsWith('.docx')) {
+				const blobUrl = URL.createObjectURL(file);
+				const officeViewer = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(blobUrl)}`;
+				preview.innerHTML = `<iframe src="${officeViewer}" width="100%" height="400px" style="border:none;border-radius:8px;box-shadow:0 2px 8px #0078d433;"></iframe><div style='margin-top:8px;'><a href="${blobUrl}" target="_blank">Download DOCX</a></div>`;
+			} else {
+				preview.innerHTML = '<span style="color:#888;">Preview not available for this file type.</span>';
+			}
+		};
+		document.getElementById('uploadForm').onsubmit = async (e) => {
+			e.preventDefault();
+			const file = fileInput.files[0];
+			const lang = document.getElementById('langSelect').value;
+			if (!file) return;
+			document.getElementById('uploadStatus').textContent = 'Translating...';
+			document.getElementById('progress').style.width = '0%';
+			// Animate progress bar over 10 seconds
+			let progress = 0;
+			const progressBar = document.getElementById('progress');
+			const progressInterval = setInterval(() => {
+				progress += 1;
+				progressBar.style.width = progress + '%';
+				if (progress >= 100) clearInterval(progressInterval);
+			}, 100);
+			// Hide download link initially
+			const downloadLink = document.getElementById('downloadLink');
+			downloadLink.style.display = 'none';
+			// Send request
+			const formData = new FormData();
+			formData.append('file', file);
+			formData.append('sourceLang', 'auto');
+			formData.append('targetLang', lang);
+			const xhr = new XMLHttpRequest();
+			// Use local Azure Function backend for testing
+			const azureFunctionUrl = 'http://localhost:7072/api/UploadAndTranslate';
+			xhr.open('POST', azureFunctionUrl, true);
+			xhr.onload = async () => {
+				document.getElementById('uploadStatus').textContent = '';
+				if (xhr.status === 200) {
+					const data = JSON.parse(xhr.responseText);
+					if (data.targetUrl) {
+						downloadLink.href = data.targetUrl;
+						const urlParts = data.targetUrl.split('/');
+						downloadLink.setAttribute('download', urlParts[urlParts.length-1].split('?')[0]);
+						document.getElementById('translateSuccessMsg').style.display = 'block';
+						document.getElementById('waitingMsg').style.display = 'none';
+						document.getElementById('retryBtn').style.display = 'none';
+						// Show download link after 10 seconds
+						setTimeout(() => {
+							downloadLink.style.display = 'inline-block';
+						}, 10000);
+					} else {
+						alert('No translation result.');
+					}
+				} else {
+					let errorMsg = '';
+					try {
+						const errObj = JSON.parse(xhr.responseText);
+						errorMsg = errObj.error || errObj.result || xhr.responseText;
+					} catch {
+						errorMsg = xhr.responseText;
+					}
+					alert(errorMsg);
+				}
+			};
+			xhr.onerror = () => {
+				document.getElementById('uploadStatus').textContent = '';
+			};
+			xhr.send(formData);
+		};
+		</script>
+	</script>
+</body>
+</html>
