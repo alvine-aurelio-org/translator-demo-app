@@ -99,7 +99,6 @@ translator-demo/
 │   ├── requirements.txt
 │   └── templates/
 │       └── index.html
-├── translator-demo.html
 └── README.md
 ```
 
