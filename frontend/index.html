@@ -370,14 +370,8 @@
 						outputPreview.innerHTML = '<span style="color:#888;">Please wait for the file to load.</span>';
 					});
 			} else if (['jpg','jpeg','png'].includes(ext)) {
-				fetch(url, { method: 'HEAD' })
-					.then(r => {
-						if (!r.ok) throw new Error('not found');
-						outputPreview.innerHTML = `<img src="${url}" style="max-width:100%;max-height:400px;border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
-					})
-					.catch(() => {
-						outputPreview.innerHTML = '<span style="color:#888;">Please wait for the file to load.</span>';
-					});
+				// Directly set the image src, do not use fetch HEAD (fixes Azure/static host issues)
+				outputPreview.innerHTML = `<img src="${url}" style="max-width:100%;max-height:400px;border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
 			} else if (ext === 'pdf') {
 				fetch(url, { method: 'HEAD' })
 					.then(r => {
