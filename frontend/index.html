@@ -279,6 +279,9 @@
 		<script>
 		const fileInput = document.getElementById('fileInput');
 		const uploadZone = document.getElementById('uploadZone');
+		const preview = document.getElementById('sourcePreviewContent');
+		const placeholder = document.getElementById('sourcePreviewPlaceholder');
+
 		uploadZone.addEventListener('click', () => fileInput.click());
 		uploadZone.addEventListener('dragover', (e) => {
 			e.preventDefault();
@@ -296,17 +299,17 @@
 				fileInput.dispatchEvent(new Event('change'));
 			}
 		});
-		fileInput.onchange = () => {
+
+		fileInput.addEventListener('change', () => {
 			const file = fileInput.files[0];
 			document.getElementById('fileName').textContent = file ? file.name : '';
 			document.getElementById('uploadStatus').textContent = '';
 			document.getElementById('progress').style.width = '0%';
-			const preview = document.getElementById('sourcePreviewContent');
-			const placeholder = document.getElementById('sourcePreviewPlaceholder');
+			// Always clear preview and reload for new file
+			preview.innerHTML = '';
 			if (!file) {
-				preview.innerHTML = '';
-				preview.appendChild(placeholder);
 				placeholder.style.display = 'flex';
+				preview.appendChild(placeholder);
 				return;
 			}
 			placeholder.style.display = 'none';
@@ -331,7 +334,25 @@
 			} else {
 				preview.innerHTML = '<span style="color:#888;">Preview not available for this file type.</span>';
 			}
-		};
+		});
+		// Download link and translation state must persist across submits
+		const downloadLink = document.getElementById('downloadLink');
+		let translationReady = false;
+		let downloadUrl = null;
+		let progress = 0;
+		   function maybeShowDownloadLink() {
+			   console.log('maybeShowDownloadLink', {translationReady, progress, downloadUrl});
+			   if (translationReady && downloadUrl) {
+				   downloadLink.style.display = 'inline-block';
+				   downloadLink.style.visibility = 'visible';
+				   downloadLink.style.opacity = 1;
+				   downloadLink.textContent = 'Download Here (Debug: Button Forced Visible)';
+				   console.log('Download link shown');
+			   } else {
+				   downloadLink.style.display = 'none';
+				   document.body.insertAdjacentHTML('beforeend', '<div style="color:red;font-weight:bold;">[Debug] Download button logic not triggered. translationReady=' + translationReady + ', downloadUrl=' + downloadUrl + '</div>');
+			   }
+		   }
 		document.getElementById('uploadForm').onsubmit = async (e) => {
 			e.preventDefault();
 			const file = fileInput.files[0];
@@ -340,46 +361,62 @@
 			document.getElementById('uploadStatus').textContent = 'Translating...';
 			document.getElementById('progress').style.width = '0%';
 			// Animate progress bar over 10 seconds
-			let progress = 0;
+			progress = 0;
 			const progressBar = document.getElementById('progress');
+			translationReady = false;
+			downloadUrl = null;
+			// Hide download link and messages initially
+			downloadLink.style.display = 'none';
+			// For debugging: reset state
+			console.log('Upload started, hiding download link');
+			document.getElementById('translateSuccessMsg').style.display = 'none';
+			document.getElementById('waitingMsg').style.display = 'block';
+			document.getElementById('retryBtn').style.display = 'none';
 			const progressInterval = setInterval(() => {
 				progress += 1;
 				progressBar.style.width = progress + '%';
-				if (progress >= 100) clearInterval(progressInterval);
+				if (progress >= 100) {
+					clearInterval(progressInterval);
+					console.log('Progress bar complete');
+					maybeShowDownloadLink();
+				}
 			}, 100);
-			// Hide download link initially
-			const downloadLink = document.getElementById('downloadLink');
-			downloadLink.style.display = 'none';
 			// Send request
 			const formData = new FormData();
 			formData.append('file', file);
 			formData.append('sourceLang', 'auto');
 			formData.append('targetLang', lang);
 			const xhr = new XMLHttpRequest();
-			// Use deployed Azure Function backend
-			const azureFunctionUrl = 'https://translator-func-2k7g.azurewebsites.net/api/UploadAndTranslate';
+			// Use new deployed Azure Function backend
+			const azureFunctionUrl = 'https://translator-demo-func.azurewebsites.net/api/uploadandtranslate';
 			xhr.open('POST', azureFunctionUrl, true);
 			xhr.onload = async () => {
 				document.getElementById('uploadStatus').textContent = '';
 				if (xhr.status === 200) {
 					const data = JSON.parse(xhr.responseText);
 					if (data.targetUrl) {
-						console.log('Setting download link:', data.targetUrl);
+						downloadUrl = data.targetUrl;
+						translationReady = true;
 						downloadLink.href = data.targetUrl;
 						const urlParts = data.targetUrl.split('/');
 						downloadLink.setAttribute('download', urlParts[urlParts.length-1].split('?')[0]);
 						document.getElementById('translateSuccessMsg').style.display = 'block';
 						document.getElementById('waitingMsg').style.display = 'none';
 						document.getElementById('retryBtn').style.display = 'none';
-						// Show download link after 20 seconds
-						setTimeout(() => {
-							downloadLink.style.display = 'inline-block';
-							console.log('Download link display style:', downloadLink.style.display);
-						}, 20000);
+						console.log('Translation ready, calling maybeShowDownloadLink');
+						maybeShowDownloadLink();
 					} else {
+						document.getElementById('translateSuccessMsg').style.display = 'none';
+						document.getElementById('waitingMsg').style.display = 'none';
+						document.getElementById('retryBtn').style.display = 'block';
+						downloadLink.style.display = 'none';
 						alert('No translation result.');
 					}
 				} else {
+					document.getElementById('translateSuccessMsg').style.display = 'none';
+					document.getElementById('waitingMsg').style.display = 'none';
+					document.getElementById('retryBtn').style.display = 'block';
+					downloadLink.style.display = 'none';
 					let errorMsg = '';
 					try {
 						const errObj = JSON.parse(xhr.responseText);
