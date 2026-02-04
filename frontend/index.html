@@ -352,7 +352,7 @@
 		let progress = 0;
 		const outputPreview = document.getElementById('outputPreviewContent');
 		const outputPlaceholder = document.getElementById('outputPreviewPlaceholder');
-		function showOutputPreview(url) {
+		function showOutputPreview(url, retryCount = 0) {
 			// Remove placeholder
 			outputPreview.innerHTML = '';
 			// Guess file type from url
@@ -367,11 +367,28 @@
 						outputPreview.innerHTML = `<pre style="white-space:pre-wrap;">${text.replace(/</g,'&lt;')}</pre>`;
 					})
 					.catch(() => {
-						outputPreview.innerHTML = '<span style="color:#888;">Please wait for the file to load.</span>';
+						if (retryCount < 15) {
+							outputPreview.innerHTML = '<span style="color:#888;">Please wait for the file to load. Retrying...</span>';
+							setTimeout(() => showOutputPreview(url, retryCount + 1), 2000);
+						} else {
+							outputPreview.innerHTML = '<span style="color:#888;">File not found after several attempts.</span>';
+						}
 					});
-			} else if (['jpg','jpeg','png'].includes(ext)) {
-				// Directly set the image src, do not use fetch HEAD (fixes Azure/static host issues)
-				outputPreview.innerHTML = `<img src="${url}" style="max-width:100%;max-height:400px;border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
+			} else if (["jpg","jpeg","png"].includes(ext)) {
+				// Try to load the image, retry if 404
+				const img = new window.Image();
+				img.onload = function() {
+					outputPreview.innerHTML = `<img src="${url}" style="max-width:100%;max-height:400px;border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
+				};
+				img.onerror = function() {
+					if (retryCount < 15) {
+						outputPreview.innerHTML = '<span style="color:#888;">Please wait for the image to be available. Retrying...</span>';
+						setTimeout(() => showOutputPreview(url, retryCount + 1), 2000);
+					} else {
+						outputPreview.innerHTML = '<span style="color:#888;">Image not found after several attempts.</span>';
+					}
+				};
+				img.src = url + (url.includes('?') ? '&' : '?') + 'cachebust=' + Date.now();
 			} else if (ext === 'pdf') {
 				fetch(url, { method: 'HEAD' })
 					.then(r => {
@@ -379,7 +396,12 @@
 						outputPreview.innerHTML = `<embed src="${url}" type="application/pdf" width="100%" height="400px" style="border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
 					})
 					.catch(() => {
-						outputPreview.innerHTML = '<span style="color:#888;">Please wait for the file to load.</span>';
+						if (retryCount < 15) {
+							outputPreview.innerHTML = '<span style="color:#888;">Please wait for the file to load. Retrying...</span>';
+							setTimeout(() => showOutputPreview(url, retryCount + 1), 2000);
+						} else {
+							outputPreview.innerHTML = '<span style="color:#888;">File not found after several attempts.</span>';
+						}
 					});
 			} else if (ext === 'docx') {
 				fetch(url, { method: 'HEAD' })
@@ -389,7 +411,12 @@
 						outputPreview.innerHTML = `<iframe src="${officeViewer}" width="100%" height="400px" style="border:none;border-radius:8px;box-shadow:0 2px 8px #0078d433;"></iframe><div style='margin-top:8px;'><a href="${url}" target="_blank">Download DOCX</a></div>`;
 					})
 					.catch(() => {
-						outputPreview.innerHTML = '<span style="color:#888;">Please wait for the file to load.</span>';
+						if (retryCount < 15) {
+							outputPreview.innerHTML = '<span style="color:#888;">Please wait for the file to load. Retrying...</span>';
+							setTimeout(() => showOutputPreview(url, retryCount + 1), 2000);
+						} else {
+							outputPreview.innerHTML = '<span style="color:#888;">File not found after several attempts.</span>';
+						}
 					});
 			} else {
 				outputPreview.innerHTML = '<span style="color:#888;">Preview not available for this file type.</span>';
