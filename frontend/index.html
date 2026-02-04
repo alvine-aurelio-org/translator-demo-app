@@ -390,19 +390,32 @@
 				};
 				img.src = url + (url.includes('?') ? '&' : '?') + 'cachebust=' + Date.now();
 			} else if (ext === 'pdf') {
-				fetch(url, { method: 'HEAD' })
-					.then(r => {
-						if (!r.ok) throw new Error('not found');
-						outputPreview.innerHTML = `<embed src="${url}" type="application/pdf" width="100%" height="400px" style="border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
-					})
-					.catch(() => {
-						if (retryCount < 15) {
-							outputPreview.innerHTML = '<span style="color:#888;">Please wait for the file to load. Retrying...</span>';
-							setTimeout(() => showOutputPreview(url, retryCount + 1), 2000);
-						} else {
-							outputPreview.innerHTML = '<span style="color:#888;">File not found after several attempts.</span>';
-						}
-					});
+				// Try to load the PDF in an <embed>, retry if it fails to load
+				const testPdf = document.createElement('embed');
+				testPdf.src = url + (url.includes('?') ? '&' : '?') + 'cachebust=' + Date.now();
+				testPdf.type = 'application/pdf';
+				testPdf.width = '100%';
+				testPdf.height = '400px';
+				testPdf.style = 'border-radius:8px;box-shadow:0 2px 8px #0078d433;';
+				let loaded = false;
+				// Try to detect load error (not all browsers fire error events for <embed>, so fallback to retry anyway)
+				testPdf.onerror = function() {
+					loaded = false;
+				};
+				testPdf.onload = function() {
+					loaded = true;
+				};
+				outputPreview.innerHTML = '';
+				outputPreview.appendChild(testPdf);
+				setTimeout(() => {
+					// If after 2s the PDF is not loaded, retry
+					if (!loaded && retryCount < 15) {
+						outputPreview.innerHTML = '<span style="color:#888;">Please wait for the PDF to be available. Retrying...</span>';
+						setTimeout(() => showOutputPreview(url, retryCount + 1), 2000);
+					} else if (!loaded && retryCount >= 15) {
+						outputPreview.innerHTML = '<span style="color:#888;">PDF not found after several attempts.</span>';
+					}
+				}, 2000);
 			} else if (ext === 'docx') {
 				fetch(url, { method: 'HEAD' })
 					.then(r => {
