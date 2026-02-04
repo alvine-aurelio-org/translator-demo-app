@@ -218,15 +218,25 @@
 			<!-- Removed duplicate progress bar here -->
 			<span id="uploadStatus" style="font-size:1em;color:#0078d4;margin-left:1em;font-weight:500;"></span>
 		</div>
-		<div id="sourcePreviewPanel" style="max-width:700px;margin:2em auto 0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 8px #0078d422;padding:1.5em;">
-			<div style="font-size:1.2em;color:#0078d4;font-weight:700;margin-bottom:0.8em;text-align:center;">Source Preview</div>
-			<div id="sourcePreviewContent">
-				<div id="sourcePreviewPlaceholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
-					<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="#0078d4" viewBox="0 0 24 24" style="margin-bottom:0.5em;"><path d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.828A2 2 0 0 0 19.414 8l-5.414-5.414A2 2 0 0 0 12.172 2H6zm6 1.414L18.586 10H14a2 2 0 0 1-2-2V3.414zM6 4h5v4a4 4 0 0 0 4 4h4v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4zm2 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm4 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0z"/></svg>
-					<span style="color:#888;font-size:1.1em;text-align:center;">Your file will be displayed here</span>
+		<div class="split-pane" style="width: 95vw; max-width: 1400px; margin: 2em auto 0 auto; min-height: 420px;">
+			<div class="panel" id="sourcePanel">
+				<div class="panel-title">Source Preview</div>
+				<div class="panel-content" id="sourcePreviewContent">
+					<div id="sourcePreviewPlaceholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
+						<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="#0078d4" viewBox="0 0 24 24" style="margin-bottom:0.5em;"><path d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.828A2 2 0 0 0 19.414 8l-5.414-5.414A2 2 0 0 0 12.172 2H6zm6 1.414L18.586 10H14a2 2 0 0 1-2-2V3.414zM6 4h5v4a4 4 0 0 0 4 4h4v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4zm2 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm4 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0z"/></svg>
+						<span style="color:#888;font-size:1.1em;text-align:center;">Your file will be displayed here</span>
+					</div>
 				</div>
 			</div>
-		<!-- Source preview panel ends here -->
+			<div class="panel" id="outputPanel">
+				<div class="panel-title">Output Preview</div>
+				<div class="panel-content" id="outputPreviewContent">
+					<div id="outputPreviewPlaceholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
+						<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="#00cfff" viewBox="0 0 24 24" style="margin-bottom:0.5em;"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+						<span style="color:#888;font-size:1.1em;text-align:center;">The translated file will be displayed here</span>
+					</div>
+				</div>
+			</div>
 		</div>
 		<div style="display:flex;justify-content:center;width:100%;">
 			<div class="download-center" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;max-width:400px;margin:2em auto;">
@@ -340,19 +350,46 @@
 		let translationReady = false;
 		let downloadUrl = null;
 		let progress = 0;
-		   function maybeShowDownloadLink() {
-			   console.log('maybeShowDownloadLink', {translationReady, progress, downloadUrl});
-			   if (translationReady && downloadUrl) {
-				   downloadLink.style.display = 'inline-block';
-				   downloadLink.style.visibility = 'visible';
-				   downloadLink.style.opacity = 1;
-				   downloadLink.textContent = 'Download Here';
-				   console.log('Download link shown');
-			   } else {
-				   downloadLink.style.display = 'none';
-				   document.body.insertAdjacentHTML('beforeend', '<div style="color:red;font-weight:bold;">[Debug] Download button logic not triggered. translationReady=' + translationReady + ', downloadUrl=' + downloadUrl + '</div>');
-			   }
-		   }
+		const outputPreview = document.getElementById('outputPreviewContent');
+		const outputPlaceholder = document.getElementById('outputPreviewPlaceholder');
+		function showOutputPreview(url) {
+			// Remove placeholder
+			outputPreview.innerHTML = '';
+			// Guess file type from url
+			const ext = url.split('.').pop().split('?')[0].toLowerCase();
+			if (ext === 'txt') {
+				fetch(url)
+					.then(r => r.text())
+					.then(text => {
+						outputPreview.innerHTML = `<pre style="white-space:pre-wrap;">${text.replace(/</g,'&lt;')}</pre>`;
+					});
+			} else if (['jpg','jpeg','png'].includes(ext)) {
+				outputPreview.innerHTML = `<img src="${url}" style="max-width:100%;max-height:400px;border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
+			} else if (ext === 'pdf') {
+				outputPreview.innerHTML = `<embed src="${url}" type="application/pdf" width="100%" height="400px" style="border-radius:8px;box-shadow:0 2px 8px #0078d433;">`;
+			} else if (ext === 'docx') {
+				const officeViewer = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
+				outputPreview.innerHTML = `<iframe src="${officeViewer}" width="100%" height="400px" style="border:none;border-radius:8px;box-shadow:0 2px 8px #0078d433;"></iframe><div style='margin-top:8px;'><a href="${url}" target="_blank">Download DOCX</a></div>`;
+			} else {
+				outputPreview.innerHTML = '<span style="color:#888;">Preview not available for this file type.</span>';
+			}
+		}
+		function maybeShowDownloadLink() {
+			console.log('maybeShowDownloadLink', {translationReady, progress, downloadUrl});
+			if (translationReady && downloadUrl) {
+				downloadLink.style.display = 'inline-block';
+				downloadLink.style.visibility = 'visible';
+				downloadLink.style.opacity = 1;
+				downloadLink.textContent = 'Download Here';
+				showOutputPreview(downloadUrl);
+				console.log('Download link shown');
+			} else {
+				downloadLink.style.display = 'none';
+				outputPreview.innerHTML = '';
+				outputPreview.appendChild(outputPlaceholder);
+				document.body.insertAdjacentHTML('beforeend', '<div style="color:red;font-weight:bold;">[Debug] Download button logic not triggered. translationReady=' + translationReady + ', downloadUrl=' + downloadUrl + '</div>');
+			}
+		}
 		document.getElementById('uploadForm').onsubmit = async (e) => {
 			e.preventDefault();
 			const file = fileInput.files[0];
